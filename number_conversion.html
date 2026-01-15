@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OnePlus Programmer Converter</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-active: #1c1c1c; 
+            --accent-color: #ff9f0a; 
+            --text-main: #ffffff;
+            --text-dim: #666666;
+            --key-text: #ffffff;
+            --key-disabled: #222222;
+            --action-color: #ff584d; 
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body, html {
+            margin: 0; padding: 0;
+            height: 100dvh; 
+            width: 100vw;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden; 
+            display: flex;
+            justify-content: center; 
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 500px; 
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* --- DISPLAY SECTION --- */
+        .display-area {
+            flex: 1; 
+            padding: 20px 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end; 
+            gap: 4px;
+        }
+
+        .system-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border-radius: 18px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .system-row.active {
+            background-color: var(--card-active);
+        }
+
+        .label-group { display: flex; flex-direction: column; }
+        
+        .sys-tag { 
+            font-size: 13px; font-weight: 700; color: var(--text-dim); 
+            letter-spacing: 0.5px;
+        }
+        
+        .sys-name { font-size: 11px; color: #444; }
+
+        .sys-value {
+            font-family: 'Roboto Mono', monospace;
+            font-size: 20px; color: var(--text-main);
+            text-align: right;
+            max-width: 70%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .active .sys-tag { color: var(--accent-color); }
+        .active .sys-value { color: var(--accent-color); }
+
+        /* --- KEYPAD SECTION --- */
+        .keypad {
+            padding-bottom: max(10px, env(safe-area-inset-bottom));
+        }
+
+        .hex-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            row-gap: 10px; 
+            padding: 0 10px;
+        }
+
+        .separator {
+            width: 100%;
+            height: 1px;
+            background-color: #1a1a1a;
+            margin: 10px 0;
+        }
+
+        .num-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            row-gap: 15px; 
+            padding: 0 10px;
+        }
+
+        .btn {
+            background: transparent;
+            border: none;
+            color: var(--key-text);
+            font-size: 24px;
+            height: 55px; 
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .btn:active { background: #222; border-radius: 50%; }
+
+        .btn-hex {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-dim); 
+        }
+
+        .btn-action { color: var(--action-color); font-size: 18px; font-weight: 600; }
+
+        .disabled {
+            color: var(--key-disabled) !important;
+            pointer-events: none; 
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div class="display-area">
+        <div class="system-row" id="row-hex" onclick="setMode('hex')">
+            <div class="label-group">
+                <span class="sys-tag">HEX</span>
+                <span class="sys-name">Hexadecimal</span>
+            </div>
+            <span class="sys-value" id="val-hex">0</span>
+        </div>
+        <div class="system-row active" id="row-dec" onclick="setMode('dec')">
+            <div class="label-group">
+                <span class="sys-tag">DEC</span>
+                <span class="sys-name">Decimal</span>
+            </div>
+            <span class="sys-value" id="val-dec">0</span>
+        </div>
+        <div class="system-row" id="row-oct" onclick="setMode('oct')">
+            <div class="label-group">
+                <span class="sys-tag">OCT</span>
+                <span class="sys-name">Octal</span>
+            </div>
+            <span class="sys-value" id="val-oct">0</span>
+        </div>
+        <div class="system-row" id="row-bin" onclick="setMode('bin')">
+            <div class="label-group">
+                <span class="sys-tag">BIN</span>
+                <span class="sys-name">Binary</span>
+            </div>
+            <span class="sys-value" id="val-bin">0</span>
+        </div>
+    </div>
+
+    <div class="keypad">
+        <div class="hex-grid">
+            <button class="btn btn-hex" id="key-D" onclick="press('D')">D</button>
+            <button class="btn btn-hex" id="key-E" onclick="press('E')">E</button>
+            <button class="btn btn-hex" id="key-F" onclick="press('F')">F</button>
+            <button class="btn btn-action" onclick="clearAll()">AC</button>
+            <button class="btn btn-hex" id="key-A" onclick="press('A')">A</button>
+            <button class="btn btn-hex" id="key-B" onclick="press('B')">B</button>
+            <button class="btn btn-hex" id="key-C" onclick="press('C')">C</button>
+            <button class="btn btn-action" onclick="backspace()">⌫</button>
+        </div>
+        <div class="separator"></div>
+        <div class="num-grid">
+            <button class="btn" id="key-7" onclick="press('7')">7</button>
+            <button class="btn" id="key-8" onclick="press('8')">8</button>
+            <button class="btn" id="key-9" onclick="press('9')">9</button>
+            <button class="btn" id="key-4" onclick="press('4')">4</button>
+            <button class="btn" id="key-5" onclick="press('5')">5</button>
+            <button class="btn" id="key-6" onclick="press('6')">6</button>
+            <button class="btn" id="key-1" onclick="press('1')">1</button>
+            <button class="btn" id="key-2" onclick="press('2')">2</button>
+            <button class="btn" id="key-3" onclick="press('3')">3</button>
+            <span></span>
+            <button class="btn" id="key-0" onclick="press('0')">0</button>
+            <span></span>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentValue = BigInt(0);
+    let activeMode = 'dec';
+
+    const modes = {
+        'hex': { base: 16, valid: '0123456789ABCDEF' },
+        'dec': { base: 10, valid: '0123456789' },
+        'oct': { base: 8,  valid: '01234567' },
+        'bin': { base: 2,  valid: '01' }
+    };
+
+    function setMode(mode) {
+        document.querySelectorAll('.system-row').forEach(row => row.classList.remove('active'));
+        document.getElementById(`row-${mode}`).classList.add('active');
+        activeMode = mode;
+        updateKeypadState();
+    }
+
+    function updateKeypadState() {
+        const allowed = modes[activeMode].valid;
+        for(let i=0; i<=9; i++) {
+            const btn = document.getElementById(`key-${i}`);
+            btn.classList.toggle('disabled', !allowed.includes(i.toString()));
+        }
+        ['A','B','C','D','E','F'].forEach(char => {
+            const btn = document.getElementById(`key-${char}`);
+            const isAllowed = allowed.includes(char);
+            btn.classList.toggle('disabled', !isAllowed);
+            if (isAllowed) btn.style.color = '#ffffff';
+            else btn.style.color = 'var(--key-disabled)';
+        });
+    }
+
+    function press(key) {
+        const config = modes[activeMode];
+        let str = currentValue.toString(config.base).toUpperCase();
+        if (currentValue === 0n) str = "";
+        const newStr = str + key;
+        
+        // Safety limit to prevent UI break
+        if(newStr.length > 20) return;
+
+        try {
+            let prefix = activeMode === 'hex' ? '0x' : activeMode === 'oct' ? '0o' : activeMode === 'bin' ? '0b' : '';
+            currentValue = BigInt(prefix + newStr);
+            updateDisplays();
+        } catch(e) {}
+    }
+
+    function backspace() {
+        const config = modes[activeMode];
+        let str = currentValue.toString(config.base).toUpperCase();
+        if (str.length <= 1) {
+            currentValue = 0n;
+        } else {
+            str = str.slice(0, -1);
+            let prefix = activeMode === 'hex' ? '0x' : activeMode === 'oct' ? '0o' : activeMode === 'bin' ? '0b' : '';
+            currentValue = BigInt(prefix + str);
+        }
+        updateDisplays();
+    }
+
+    function clearAll() {
+        currentValue = 0n;
+        updateDisplays();
+    }
+
+    function updateDisplays() {
+        document.getElementById('val-hex').innerText = currentValue.toString(16).toUpperCase();
+        document.getElementById('val-dec').innerText = currentValue.toString(10);
+        document.getElementById('val-oct').innerText = currentValue.toString(8);
+        document.getElementById('val-bin').innerText = currentValue.toString(2);
+    }
+
+    updateKeypadState();
+</script>
+</body>
+</html>

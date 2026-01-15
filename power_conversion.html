@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OxygenOS Power Converter</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-color: #1c1c1c;
+            --accent-color: #ff9f0a;
+            --text-main: #ffffff;
+            --text-dim: #888888;
+            --sheet-bg: #1a1a1a;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            background-color: var(--bg-color); color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex; flex-direction: column; height: 100dvh;
+            padding: 16px; max-width: 500px; margin: 0 auto;
+            position: relative;
+        }
+
+        /* --- EXPANDED BOTTOM SHEET --- */
+        /* This sheet is taller (90% height) to accommodate the long list */
+        #selector-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            display: none; align-items: flex-end;
+            backdrop-filter: blur(2px);
+            opacity: 0; transition: opacity 0.2s ease;
+        }
+
+        #bottom-sheet {
+            width: 100%; height: 85%; /* Expanded height */
+            background: var(--sheet-bg);
+            border-top-left-radius: 24px; border-top-right-radius: 24px;
+            display: flex; flex-direction: column;
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .sheet-header {
+            padding: 20px; border-bottom: 1px solid #333;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        .sheet-title { font-weight: 700; font-size: 18px; }
+        .sheet-cancel { color: var(--accent-color); font-weight: 600; cursor: pointer; font-size: 16px; border:none; background:none;}
+
+        #search-input {
+            margin: 10px 20px; padding: 12px; background: #222; border: 1px solid #444;
+            border-radius: 10px; color: white; font-size: 16px; width: calc(100% - 40px);
+        }
+
+        #list-container { overflow-y: auto; flex: 1; padding-bottom: 30px; }
+
+        .category-header {
+            padding: 15px 25px 5px; font-size: 13px; font-weight: bold;
+            color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px;
+            background: var(--sheet-bg); position: sticky; top: 0;
+        }
+
+        .unit-item {
+            padding: 18px 25px; border-bottom: 1px solid #222;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 17px; cursor: pointer;
+        }
+        .unit-item:active { background: #333; }
+        .unit-symbol { color: var(--text-dim); }
+
+        /* --- MAIN UI --- */
+        .display-area {
+            flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px;
+        }
+
+        .card {
+            background: var(--card-color); padding: 20px; border-radius: 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 110px; cursor: pointer;
+        }
+
+        .unit-info { display: flex; flex-direction: column; gap: 4px; }
+        .unit-name-big { font-weight: bold; font-size: 18px; }
+        .unit-symbol-small { color: var(--text-dim); font-size: 14px; }
+        
+        /* High Precision Font Styling */
+        .value { 
+            font-size: 26px; /* Slightly smaller to fit 18 decimals */
+            color: var(--accent-color); font-weight: 300; 
+            text-align: right; word-break: break-all; max-width: 65%;
+            line-height: 1.1;
+        }
+
+        .middle-bar {
+            display: flex; justify-content: flex-end; align-items: center; padding: 0 10px;
+        }
+
+        .swap-btn {
+            background: #222; border: none; color: var(--accent-color);
+            width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer;
+        }
+
+        /* --- KEYPAD (4 Columns with 00) --- */
+        .keypad {
+            display: grid; grid-template-columns: repeat(4, 1fr); 
+            gap: 10px; padding-bottom: env(safe-area-inset-bottom); margin-top: 10px;
+        }
+
+        .key {
+            height: clamp(60px, 11vh, 85px);
+            border: none; background: transparent; color: white; font-size: 24px;
+            border-radius: 40px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .key:active { background: #333; }
+        .orange { color: var(--accent-color); font-weight: 500; }
+        .red { color: #ff453a; font-weight: 600; }
+        
+        .number-key { font-size: 28px; }
+        .double-zero { font-size: 24px; letter-spacing: -1px; }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <div id="selector-overlay" onclick="closeSheet(event)">
+        <div id="bottom-sheet" onclick="event.stopPropagation()">
+            <div class="sheet-header">
+                <span class="sheet-title">Select Unit</span>
+                <button class="sheet-cancel" onclick="closeSheet()">Cancel</button>
+            </div>
+            <input type="text" id="search-input" placeholder="Search (e.g. Watt, hp)" onkeyup="renderList()">
+            <div id="list-container"></div>
+        </div>
+    </div>
+
+    <div class="display-area">
+        <div class="card" onclick="openSheet('from')">
+            <div class="unit-info">
+                <span class="unit-name-big" id="from-name">Horsepower (Imp.)</span>
+                <span class="unit-symbol-small" id="from-symbol">hp</span>
+            </div>
+            <div class="value" id="input-val">1</div>
+        </div>
+
+        <div class="middle-bar">
+            <button class="swap-btn" onclick="swap()">⇅</button>
+        </div>
+
+        <div class="card" onclick="openSheet('to')">
+            <div class="unit-info">
+                <span class="unit-name-big" id="to-name">Kilowatt</span>
+                <span class="unit-symbol-small" id="to-symbol">kW</span>
+            </div>
+            <div class="value" id="output-val">0.74569987...</div>
+        </div>
+    </div>
+
+    <div class="keypad">
+        <button class="key number-key" onclick="press('7')">7</button>
+        <button class="key number-key" onclick="press('8')">8</button>
+        <button class="key number-key" onclick="press('9')">9</button>
+        <button class="key red" onclick="backspace()">⌫</button>
+
+        <button class="key number-key" onclick="press('4')">4</button>
+        <button class="key number-key" onclick="press('5')">5</button>
+        <button class="key number-key" onclick="press('6')">6</button>
+        <button class="key red" onclick="clearAll()">AC</button>
+
+        <button class="key number-key" onclick="press('1')">1</button>
+        <button class="key number-key" onclick="press('2')">2</button>
+        <button class="key number-key" onclick="press('3')">3</button>
+        <button class="key" style="visibility:hidden"></button>
+
+        <button class="key number-key" onclick="press('0')">0</button>
+        <button class="key double-zero" onclick="press('00')">00</button>
+        <button class="key orange" onclick="press('.')">.</button>
+        <button class="key" style="visibility:hidden"></button>
+    </div>
+</div>
+
+<script>
+    // --- DATA: Conversion Factors relative to 1 Watt (W) ---
+    const categories = {
+        "Electrical": [
+            { name: "Watt", sym: "W", factor: 1 },
+            { name: "Kilowatt", sym: "kW", factor: 1000 },
+            { name: "Milliwatt", sym: "mW", factor: 0.001 },
+        ],
+        "Mechanical / Automotive": [
+            // The Crucial Distinction
+            { name: "Horsepower (Imperial)", sym: "hp", factor: 745.699872 }, // US/UK
+            { name: "Horsepower (Metric)", sym: "PS", factor: 735.49875 },    // EU/Asia
+        ],
+        "Physics & Science": [
+            { name: "Joule/second", sym: "J/s", factor: 1 },
+            { name: "Foot-pound/second", sym: "ft·lb/s", factor: 1.355818 },
+            { name: "Newton metre/second", sym: "N·m/s", factor: 1 },
+        ],
+        "Thermodynamics (HVAC)": [
+            { name: "British thermal unit/second", sym: "Btu/s", factor: 1055.056 },
+            { name: "Kilocalorie/second", sym: "kcal/s", factor: 4184 },
+        ]
+    };
+
+    // --- STATE ---
+    let input = "1";
+    let fromUnit = categories["Mechanical / Automotive"][0]; // hp
+    let toUnit = categories["Electrical"][1]; // kW
+    let targetSide = 'from';
+
+    // --- INIT ---
+    updateUI();
+
+    // --- LOGIC ---
+    function updateUI() {
+        document.getElementById('input-val').innerText = input;
+        
+        const val = parseFloat(input);
+        const result = val * (fromUnit.factor / toUnit.factor);
+        
+        let displayResult;
+        if (result === 0) {
+            displayResult = "0";
+        } else {
+            // Extreme Precision Logic:
+            // Standard toFixed(18) mimics the "Double Precision" look
+            // We use parseFloat to strip trailing zeros if it happens to be clean
+            displayResult = result.toFixed(15); 
+            // Remove trailing zeros for cleaner look if needed, but allow high precision
+            displayResult = displayResult.replace(/\.?0+$/, "");
+        }
+
+        document.getElementById('output-val').innerText = displayResult;
+
+        document.getElementById('from-name').innerText = fromUnit.name;
+        document.getElementById('from-symbol').innerText = fromUnit.sym;
+        document.getElementById('to-name').innerText = toUnit.name;
+        document.getElementById('to-symbol').innerText = toUnit.sym;
+    }
+
+    function press(key) {
+        if (input === "0" && key !== ".") input = key;
+        else if (!(key === "." && input.includes("."))) {
+            if (input.length < 12) input += key;
+        }
+        updateUI();
+    }
+
+    function backspace() {
+        input = input.slice(0, -1);
+        if (input === "") input = "0";
+        updateUI();
+    }
+
+    function clearAll() {
+        input = "0";
+        updateUI();
+    }
+
+    function swap() {
+        [fromUnit, toUnit] = [toUnit, fromUnit];
+        updateUI();
+    }
+
+    // --- EXPANDED SHEET LOGIC ---
+    function openSheet(side) {
+        targetSide = side;
+        const overlay = document.getElementById('selector-overlay');
+        const sheet = document.getElementById('bottom-sheet');
+        
+        document.getElementById('search-input').value = "";
+        renderList();
+
+        overlay.style.display = "flex";
+        setTimeout(() => {
+            overlay.style.opacity = "1";
+            sheet.style.transform = "translateY(0)";
+        }, 10);
+    }
+
+    function closeSheet(e) {
+        if (e && e.target.id !== "selector-overlay" && e.target.className !== "sheet-cancel") return;
+        
+        const overlay = document.getElementById('selector-overlay');
+        const sheet = document.getElementById('bottom-sheet');
+
+        overlay.style.opacity = "0";
+        sheet.style.transform = "translateY(100%)";
+        setTimeout(() => { overlay.style.display = "none"; }, 300);
+    }
+
+    function renderList() {
+        const query = document.getElementById('search-input').value.toLowerCase();
+        const container = document.getElementById('list-container');
+        container.innerHTML = "";
+
+        for (const [category, units] of Object.entries(categories)) {
+            const filtered = units.filter(u => u.name.toLowerCase().includes(query) || u.sym.toLowerCase().includes(query));
+
+            if (filtered.length > 0) {
+                const header = document.createElement('div');
+                header.className = "category-header";
+                header.innerText = category;
+                container.appendChild(header);
+
+                filtered.forEach(u => {
+                    const div = document.createElement('div');
+                    div.className = "unit-item";
+                    div.innerHTML = `<span>${u.name}</span><span class="unit-symbol">${u.sym}</span>`;
+                    div.onclick = () => selectUnit(u);
+                    container.appendChild(div);
+                });
+            }
+        }
+    }
+
+    function selectUnit(u) {
+        if (targetSide === 'from') fromUnit = u;
+        else toUnit = u;
+        
+        // Close Sheet
+        const overlay = document.getElementById('selector-overlay');
+        const sheet = document.getElementById('bottom-sheet');
+        overlay.style.opacity = "0";
+        sheet.style.transform = "translateY(100%)";
+        setTimeout(() => { overlay.style.display = "none"; }, 300);
+
+        updateUI();
+    }
+</script>
+
+</body>
+</html>

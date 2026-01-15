@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OxygenOS Length Converter</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-color: #1c1c1c;
+            --accent-color: #ff9f0a;
+            --text-main: #ffffff;
+            --text-dim: #888888;
+            --header-bg: #111;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            background-color: var(--bg-color); color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex; flex-direction: column; height: 100dvh;
+            padding: 16px; max-width: 500px; margin: 0 auto;
+        }
+
+        /* --- SELECTION OVERLAY --- */
+        #selector-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color); z-index: 100;
+            display: none; flex-direction: column;
+        }
+
+        .overlay-header { padding: 20px; background: var(--header-bg); border-bottom: 1px solid #333; }
+        
+        #search-input {
+            width: 100%; padding: 12px; background: #222; border: 1px solid #444;
+            border-radius: 10px; color: white; margin-top: 10px; font-size: 16px;
+        }
+
+        #list-container { overflow-y: auto; flex: 1; padding-bottom: 50px; }
+
+        .category-header {
+            padding: 15px 20px 5px;
+            font-size: 14px; font-weight: bold;
+            color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px;
+            background: var(--bg-color);
+            position: sticky; top: 0;
+        }
+
+        .unit-item {
+            padding: 18px 20px; border-bottom: 1px solid #1a1a1a;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 17px; cursor: pointer;
+        }
+        .unit-item:active { background: #222; }
+        .unit-symbol { color: var(--text-dim); font-size: 15px; }
+
+        /* --- MAIN UI --- */
+        .display-area {
+            flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px;
+        }
+
+        .card {
+            background: var(--card-color); padding: 20px; border-radius: 24px;
+            display: flex; justify-content: space-between; align-items: center;
+            min-height: 110px; cursor: pointer;
+        }
+
+        .unit-info { display: flex; flex-direction: column; gap: 4px; }
+        .unit-name-big { font-weight: bold; font-size: 20px; }
+        .unit-symbol-small { color: var(--text-dim); font-size: 14px; }
+        
+        .value { 
+            font-size: 32px; color: var(--accent-color); font-weight: 300; 
+            text-align: right; word-break: break-all; max-width: 60%;
+        }
+
+        .middle-bar {
+            display: flex; justify-content: flex-end; align-items: center; padding: 0 10px;
+        }
+
+        .swap-btn {
+            background: #222; border: none; color: var(--accent-color);
+            width: 44px; height: 44px; border-radius: 50%; font-size: 20px; cursor: pointer;
+        }
+
+        /* --- KEYPAD --- */
+        .keypad {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+            padding-bottom: env(safe-area-inset-bottom); margin-top: 10px;
+        }
+
+        .key {
+            height: clamp(60px, 11vh, 85px);
+            border: none; background: transparent; color: white; font-size: 28px;
+            border-radius: 40px; cursor: pointer;
+        }
+        .key:active { background: #333; }
+        .orange { color: var(--accent-color); }
+        .red { color: #ff453a; font-size: 20px; font-weight: 600; }
+
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    
+    <div id="selector-overlay">
+        <div class="overlay-header">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:700; font-size:18px;">Select Unit</span>
+                <span onclick="closeSelector()" style="color:var(--accent-color); font-weight:600; cursor:pointer;">Cancel</span>
+            </div>
+            <input type="text" id="search-input" placeholder="Search (e.g. Mile, km)" onkeyup="renderList()">
+        </div>
+        <div id="list-container"></div>
+    </div>
+
+    <div class="display-area">
+        <div class="card" onclick="openSelector('from')">
+            <div class="unit-info">
+                <span class="unit-name-big" id="from-name">Metre</span>
+                <span class="unit-symbol-small" id="from-symbol">m</span>
+            </div>
+            <div class="value" id="input-val">1</div>
+        </div>
+
+        <div class="middle-bar">
+            <button class="swap-btn" onclick="swap()">⇅</button>
+        </div>
+
+        <div class="card" onclick="openSelector('to')">
+            <div class="unit-info">
+                <span class="unit-name-big" id="to-name">Mile</span>
+                <span class="unit-symbol-small" id="to-symbol">mi</span>
+            </div>
+            <div class="value" id="output-val">0.000621</div>
+        </div>
+    </div>
+
+    <div class="keypad">
+        <button class="key" onclick="press('1')">1</button>
+        <button class="key" onclick="press('2')">2</button>
+        <button class="key" onclick="press('3')">3</button>
+        <button class="key" onclick="press('4')">4</button>
+        <button class="key" onclick="press('5')">5</button>
+        <button class="key" onclick="press('6')">6</button>
+        <button class="key" onclick="press('7')">7</button>
+        <button class="key" onclick="press('8')">8</button>
+        <button class="key" onclick="press('9')">9</button>
+        <button class="key orange" onclick="press('.')">.</button>
+        <button class="key" onclick="press('0')">0</button>
+        <button class="key red" onclick="backspace()">⌫</button>
+    </div>
+</div>
+
+<script>
+    // --- DATA: Conversion Factors relative to 1 Metre ---
+    const categories = {
+        "Metric Units": [
+            { name: "Picometre", sym: "pm", factor: 1e-12 },
+            { name: "Nanometre", sym: "nm", factor: 1e-9 },
+            { name: "Micrometre", sym: "μm", factor: 1e-6 },
+            { name: "Millimetre", sym: "mm", factor: 0.001 },
+            { name: "Centimetre", sym: "cm", factor: 0.01 },
+            { name: "Decimetre", sym: "dm", factor: 0.1 },
+            { name: "Metre", sym: "m", factor: 1 },
+            { name: "Kilometre", sym: "km", factor: 1000 },
+            { name: "Lunar Distance", sym: "LD", factor: 384400000 },
+            { name: "Astronomical Unit", sym: "AU", factor: 149597870700 },
+            { name: "Light Year", sym: "ly", factor: 9.4607e15 },
+            { name: "Parsec", sym: "pc", factor: 3.0857e16 }
+        ],
+        "Imperial Units": [
+            { name: "Inch", sym: "in", factor: 0.0254 },
+            { name: "Foot", sym: "ft", factor: 0.3048 },
+            { name: "Yard", sym: "yd", factor: 0.9144 },
+            { name: "Fathom", sym: "ftm", factor: 1.8288 },
+            { name: "Furlong", sym: "fur", factor: 201.168 },
+            { name: "Mile", sym: "mi", factor: 1609.344 },
+            { name: "Nautical Mile", sym: "nmi", factor: 1852 }
+        ],
+        "Chinese Units": [
+            { name: "Cùn (Inch)", sym: "寸", factor: 0.0333333 },
+            { name: "Chǐ (Foot)", sym: "尺", factor: 0.3333333 },
+            { name: "Zhàng", sym: "丈", factor: 3.3333333 },
+            { name: "Lǐ", sym: "里", factor: 500 }
+        ]
+    };
+
+    // --- STATE ---
+    let input = "1";
+    let fromUnit = categories["Metric Units"][6]; // Metre
+    let toUnit = categories["Imperial Units"][5]; // Mile
+    let targetSide = 'from';
+
+    // --- INITIALIZATION ---
+    updateUI();
+
+    // --- LOGIC ---
+    function updateUI() {
+        document.getElementById('input-val').innerText = input;
+        
+        // Calculation: Input * (FromFactor / ToFactor)
+        const val = parseFloat(input);
+        const result = val * (fromUnit.factor / toUnit.factor);
+        
+        // Formatting: Handle very small or large numbers efficiently
+        let displayResult;
+        if (result === 0) displayResult = "0";
+        else if (result < 0.000001 || result > 10000000) displayResult = result.toExponential(4);
+        else displayResult = parseFloat(result.toFixed(6)); // Clean up floating point errors
+
+        document.getElementById('output-val').innerText = displayResult;
+
+        // Update Text Labels
+        document.getElementById('from-name').innerText = fromUnit.name;
+        document.getElementById('from-symbol').innerText = fromUnit.sym;
+        document.getElementById('to-name').innerText = toUnit.name;
+        document.getElementById('to-symbol').innerText = toUnit.sym;
+    }
+
+    function press(key) {
+        if (input === "0" && key !== ".") input = key;
+        else if (!(key === "." && input.includes("."))) {
+            if (input.length < 12) input += key;
+        }
+        updateUI();
+    }
+
+    function backspace() {
+        input = input.slice(0, -1);
+        if (input === "") input = "0";
+        updateUI();
+    }
+
+    function swap() {
+        [fromUnit, toUnit] = [toUnit, fromUnit];
+        updateUI();
+    }
+
+    // --- SELECTOR MENU LOGIC ---
+    function openSelector(side) {
+        targetSide = side;
+        document.getElementById('selector-overlay').style.display = "flex";
+        document.getElementById('search-input').value = "";
+        renderList();
+    }
+
+    function closeSelector() {
+        document.getElementById('selector-overlay').style.display = "none";
+    }
+
+    function renderList() {
+        const query = document.getElementById('search-input').value.toLowerCase();
+        const container = document.getElementById('list-container');
+        container.innerHTML = "";
+
+        // Iterate through categories to create headers + items
+        for (const [category, units] of Object.entries(categories)) {
+            // Filter units based on search
+            const filteredUnits = units.filter(u => 
+                u.name.toLowerCase().includes(query) || 
+                u.sym.toLowerCase().includes(query)
+            );
+
+            if (filteredUnits.length > 0) {
+                // Create Category Header
+                const header = document.createElement('div');
+                header.className = "category-header";
+                header.innerText = category;
+                container.appendChild(header);
+
+                // Create Unit Items
+                filteredUnits.forEach(u => {
+                    const div = document.createElement('div');
+                    div.className = "unit-item";
+                    div.innerHTML = `
+                        <span>${u.name}</span>
+                        <span class="unit-symbol">${u.sym}</span>
+                    `;
+                    div.onclick = () => selectUnit(u);
+                    container.appendChild(div);
+                });
+            }
+        }
+    }
+
+    function selectUnit(unitObj) {
+        if (targetSide === 'from') fromUnit = unitObj;
+        else toUnit = unitObj;
+        closeSelector();
+        updateUI();
+    }
+</script>
+
+</body>
+</html>
